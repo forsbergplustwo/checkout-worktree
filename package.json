@@ -4,6 +4,10 @@
   "description": "Open a git worktree from a URI — fetch, create worktree, open folder.",
   "version": "0.1.0",
   "publisher": "forsbergplustwo",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/forsbergplustwo/checkout-worktree.git"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
