@@ -11,6 +11,7 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import * as cp from "child_process";
+import * as fs from "fs/promises";
 import type { Repository } from "./git-api";
 
 /**
@@ -38,6 +39,9 @@ export async function checkoutWorktree(
   const safeBranch = ref.replace(/\//g, "-");
   const worktreePath = path.join(worktreeDir, safeBranch);
 
+  // Ensure .worktrees is in .gitignore
+  await ensureGitignored(repo.rootUri.fsPath, worktreeDir);
+
   // Create worktree
   await vscode.window.withProgress(
     { location: vscode.ProgressLocation.Notification, title: `Creating worktree for ${ref}…` },
@@ -61,6 +65,42 @@ function getWorktreeParentDir(repo: Repository): string {
   // Default: <repo-root>/.worktrees/ (inside repo, gitignored)
   const repoRoot = repo.rootUri.fsPath;
   return path.join(repoRoot, ".worktrees");
+}
+
+/**
+ * Ensure the worktree directory is listed in the repo's .gitignore.
+ * Only acts when the worktree dir is inside the repo root.
+ */
+async function ensureGitignored(repoRoot: string, worktreeDir: string): Promise<void> {
+  // Only relevant if worktreeDir is inside the repo
+  const relative = path.relative(repoRoot, worktreeDir);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+    return;
+  }
+
+  const entry = `/${relative}/`;
+  const gitignorePath = path.join(repoRoot, ".gitignore");
+
+  let content = "";
+  try {
+    content = await fs.readFile(gitignorePath, "utf-8");
+  } catch {
+    // No .gitignore yet — we'll create one
+  }
+
+  // Check if already ignored (exact line match)
+  const lines = content.split("\n");
+  const alreadyIgnored = lines.some(
+    (line) => line.trim() === entry || line.trim() === relative || line.trim() === `${relative}/`
+  );
+
+  if (alreadyIgnored) {
+    return;
+  }
+
+  // Append the entry
+  const separator = content.length > 0 && !content.endsWith("\n") ? "\n" : "";
+  await fs.writeFile(gitignorePath, `${content}${separator}${entry}\n`, "utf-8");
 }
 
 /**
