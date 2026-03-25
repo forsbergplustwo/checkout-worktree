@@ -1,23 +1,36 @@
 # Checkout Worktree
 
-One-click branch checkout for VS Code using git worktrees. Open a `vscode://` link from a PR, CI dashboard, or chat message — and land directly in an isolated worktree for that branch. No stashing, no switching, no manual `git worktree add`.
+Create your own deep links for one-click branch checkout of git worktrees or PR branches. Add links to your custom apps or dashboards to quickly checkout any branch or PR branch locally and open it in your favorite IDE.
+
+Works in VS Code and VS Code-compatible editors such as Cursor and Windsurf.
+
+## Why use it
+
+- Add one-click links to custom apps or dashboards to checkout any branch or PR branch locally
+- No stash/switch dance just to review or fix a branch
+- Open PR branches directly from links your team already shares
+- Keep each branch isolated in its own worktree
+- Optional setup command runs automatically after checkout
 
 ## URI Format
 
 ```
-vscode://forsbergplustwo.checkout-worktree?repo=<name>&ref=<branch>&uri=<clone_url>
+<ide-identifier>://forsbergplustwo.checkout-worktree?repo=<name>&ref=<branch>&uri=<clone_url>
 ```
 
-| Param | Required | Description |
-|-------|----------|-------------|
-| `repo` | yes | Repository directory name |
-| `ref` | yes | Branch name, tag, or commit |
-| `uri` | no | Git clone URL — used to clone the repo if not found locally |
+| Param            | Required | Description                                                            |
+| ---------------- | -------- | ---------------------------------------------------------------------- |
+| `ide-identifier` | yes      | Identifier for the IDE or editor (e.g. `vscode`, `cursor`, `windsurf`) |
+| `repo`           | yes      | Repository directory name                                              |
+| `ref`            | yes      | Branch name, tag, or commit                                            |
+| `uri`            | no       | Git clone URL — used to clone the repo if not found locally            |
 
 ## Example
 
 ```
-vscode://forsbergplustwo.checkout-worktree?repo=orderly-emails&ref=fix/issue-123&uri=https://github.com/forsbergplustwo/orderly-emails.git
+vscode://forsbergplustwo.checkout-worktree?repo=my-repo&ref=fix/issue-123&uri=https://github.com/forsbergplustwo/my-repo.git
+cursor://forsbergplustwo.checkout-worktree?repo=my-repo&ref=fix/issue-123&uri=https://github.com/forsbergplustwo/my-repo.git
+windsurf://forsbergplustwo.checkout-worktree?repo=my-repo&ref=fix/issue-123&uri=https://github.com/forsbergplustwo/my-repo.git
 ```
 
 ## How It Works
@@ -34,17 +47,18 @@ vscode://forsbergplustwo.checkout-worktree?repo=orderly-emails&ref=fix/issue-123
 
 Open VS Code settings (`Cmd+,`) and search for "Checkout Worktree":
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `checkout-worktree.gitFolders` | `[]` | Parent directories where your repos live (e.g. `~/code`, `~/projects`). Scanned one level deep to find repos by name. |
-| `checkout-worktree.worktreeParentDir` | `""` | Override where worktrees are created. Defaults to `.worktrees/` inside the repo root. |
-| `checkout-worktree.postCheckoutCommand` | `""` | Shell command to run in the worktree after creation (e.g. `mise run worktree:setup`). Only runs for new worktrees. |
+| Setting                                 | Default | Description                                                                                                                      |
+| --------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `checkout-worktree.gitFolders`          | `[]`    | Parent directories where your repos live (e.g. `~/code`, `~/projects`). Scanned one level deep to find repos by name.            |
+| `checkout-worktree.worktreeParentDir`   | `""`    | Override where worktrees are created. Defaults to `.worktrees/` inside the repo root.                                            |
+| `checkout-worktree.postCheckoutCommand` | `""`    | Shell command to run in the worktree after creation (e.g. `mise trust && mise run worktree:setup`). Only runs for new worktrees. |
 
 ### Example `settings.json`
 
 ```json
 {
   "checkout-worktree.gitFolders": ["~/code", "~/projects"],
+  "checkout-worktree.worktreeParentDir": "~/.worktrees",
   "checkout-worktree.postCheckoutCommand": "mise run worktree:setup"
 }
 ```
