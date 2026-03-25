@@ -1,6 +1,6 @@
 # Checkout Worktree
 
-VS Code extension that creates git worktrees from URI links. Click a link → fetch → create worktree → open folder.
+VS Code extension that checks out git branches as local worktrees from a URI link. Click a link → open the branch locally in VS Code — no manual `git worktree add` needed.
 
 ## URI Format
 
