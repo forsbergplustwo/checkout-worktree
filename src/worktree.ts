@@ -31,6 +31,8 @@ export async function checkoutWorktree(
   // Check for existing worktree matching this ref
   const existingPath = findExistingWorktree(repo.rootUri.fsPath, ref);
   if (existingPath) {
+    await resetWorktree(existingPath, ref);
+    await runPostCheckoutHook(existingPath);
     await openFolder(existingPath);
     return;
   }
@@ -174,6 +176,38 @@ async function runPostCheckoutHook(worktreePath: string): Promise<void> {
                 `Post-checkout: ${stdout.trim().split("\n").pop()}`
               );
             }
+            resolve();
+          }
+        });
+      })
+  );
+}
+
+const PROTECTED_BRANCHES = new Set(["main", "master"]);
+
+/**
+ * Reset an existing worktree to match origin — hard reset + clean.
+ * Skips protected branches (main, master) to avoid data loss.
+ */
+async function resetWorktree(worktreePath: string, ref: string): Promise<void> {
+  if (PROTECTED_BRANCHES.has(ref)) {
+    return;
+  }
+
+  await vscode.window.withProgress(
+    { location: vscode.ProgressLocation.Notification, title: `Resetting worktree to origin/${ref}…` },
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const commands = [
+          `git fetch origin ${ref}`,
+          `git reset --hard origin/${ref}`,
+          `git clean -fd`,
+        ].join(" && ");
+
+        cp.exec(commands, { cwd: worktreePath, timeout: 30000 }, (err) => {
+          if (err) {
+            reject(new Error(`Failed to reset worktree: ${err.message}`));
+          } else {
             resolve();
           }
         });
