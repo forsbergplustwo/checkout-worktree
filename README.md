@@ -65,36 +65,21 @@ Open VS Code settings (`Cmd+,`) and search for "Checkout Worktree":
 
 ## Install
 
-### From VSIX (recommended)
+```sh
+git clone https://github.com/forsbergplustwo/checkout-worktree.git
+cd checkout-worktree
+npm install
+```
 
-1. Clone and build:
+Then install for your editor:
 
-   ```sh
-   git clone https://github.com/forsbergplustwo/checkout-worktree.git
-   cd checkout-worktree
-   npm install
-   npm run compile
-   npx @vscode/vsce package
-   ```
+```sh
+npm run install:cursor    # Cursor
+npm run install:vscode    # VS Code
+npm run install:windsurf  # Windsurf
+```
 
-2. Install in VS Code:
-   - Open VS Code
-   - `Cmd+Shift+P` → **Extensions: Install from VSIX…**
-   - Select the generated `.vsix` file
-
-### From source (development)
-
-1. Clone and build:
-
-   ```sh
-   git clone https://github.com/forsbergplustwo/checkout-worktree.git
-   cd checkout-worktree
-   npm install
-   npm run compile
-   ```
-
-2. Open the `checkout-worktree` folder in VS Code
-3. Press `F5` to launch an Extension Development Host with the extension loaded
+Reload the editor window after installing (`Cmd+Shift+P` → **Developer: Reload Window**).
 
 ## Post-Install Setup
 
