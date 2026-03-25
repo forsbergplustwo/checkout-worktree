@@ -36,9 +36,40 @@ vscode://forsbergplustwo.checkout-worktree?repo=orderly-emails&ref=fix/issue-123
 
 ## Install
 
-```sh
-cd checkout-worktree
-npm install
-npm run compile
-# Then install from VSIX or use in development
-```
+### From VSIX (recommended)
+
+1. Clone and build:
+
+   ```sh
+   git clone https://github.com/forsbergplustwo/checkout-worktree.git
+   cd checkout-worktree
+   npm install
+   npm run compile
+   npx @vscode/vsce package
+   ```
+
+2. Install in VS Code:
+   - Open VS Code
+   - `Cmd+Shift+P` → **Extensions: Install from VSIX…**
+   - Select the generated `.vsix` file
+
+### From source (development)
+
+1. Clone and build:
+
+   ```sh
+   git clone https://github.com/forsbergplustwo/checkout-worktree.git
+   cd checkout-worktree
+   npm install
+   npm run compile
+   ```
+
+2. Open the `checkout-worktree` folder in VS Code
+3. Press `F5` to launch an Extension Development Host with the extension loaded
+
+### Configuration
+
+After installing, open VS Code settings (`Cmd+,`) and search for "Checkout Worktree":
+
+- **Git Folders** — add the parent directories where your repos live (e.g. `~/code`, `~/projects`). The extension scans these to find repos by name.
+- **Worktree Parent Dir** — optional override for where worktrees get created. Defaults to `<repo>-worktrees/` next to each repo.
