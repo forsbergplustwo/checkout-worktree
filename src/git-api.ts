@@ -33,14 +33,6 @@ export interface Repository {
 
 export interface RepositoryState {
   readonly HEAD: { name?: string } | undefined;
-  readonly worktrees: Worktree[];
-}
-
-export interface Worktree {
-  readonly name: string;
-  readonly path: string;
-  readonly ref: string;
-  readonly main: boolean;
 }
 
 // ─── Helper ──────────────────────────────────────────────────────────────────

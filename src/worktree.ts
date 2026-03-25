@@ -29,9 +29,9 @@ export async function checkoutWorktree(
   );
 
   // Check for existing worktree matching this ref
-  const existing = repo.state.worktrees.find((wt) => wt.ref === ref || wt.name === ref);
-  if (existing) {
-    await openFolder(existing.path);
+  const existingPath = findExistingWorktree(repo.rootUri.fsPath, ref);
+  if (existingPath) {
+    await openFolder(existingPath);
     return;
   }
 
@@ -53,6 +53,39 @@ export async function checkoutWorktree(
   await runPostCheckoutHook(worktreePath);
 
   await openFolder(worktreePath);
+}
+
+/**
+ * Parse `git worktree list --porcelain` to find a worktree for the given branch.
+ * Returns the worktree path if found, undefined otherwise.
+ */
+function findExistingWorktree(repoRoot: string, ref: string): string | undefined {
+  try {
+    const output = cp.execSync("git worktree list --porcelain", {
+      cwd: repoRoot,
+      encoding: "utf-8",
+      timeout: 5000,
+    });
+
+    // Porcelain format: blocks separated by blank lines
+    // Each block: "worktree <path>\nHEAD <sha>\nbranch refs/heads/<name>\n"
+    let currentPath: string | undefined;
+    for (const line of output.split("\n")) {
+      if (line.startsWith("worktree ")) {
+        currentPath = line.slice("worktree ".length);
+      } else if (line.startsWith("branch ")) {
+        const branch = line.slice("branch refs/heads/".length);
+        if (branch === ref && currentPath) {
+          return currentPath;
+        }
+      } else if (line === "") {
+        currentPath = undefined;
+      }
+    }
+  } catch {
+    // git worktree list failed — fall through to create
+  }
+  return undefined;
 }
 
 function getWorktreeParentDir(repo: Repository): string {
