@@ -38,14 +38,14 @@ Open VS Code settings (`Cmd+,`) and search for "Checkout Worktree":
 |---------|---------|-------------|
 | `checkout-worktree.gitFolders` | `[]` | Parent directories where your repos live (e.g. `~/code`, `~/projects`). Scanned one level deep to find repos by name. |
 | `checkout-worktree.worktreeParentDir` | `""` | Override where worktrees are created. Defaults to `.worktrees/` inside the repo root. |
-| `checkout-worktree.postCheckoutCommand` | `""` | Shell command to run in the worktree after creation (e.g. `mise run worktree:setup`). Only runs for new worktrees. |
+| `checkout-worktree.postCheckoutCommand` | `""` | Shell command to run in the worktree after creation (e.g. `mise trust && mise run worktree:setup`). Only runs for new worktrees. |
 
 ### Example `settings.json`
 
 ```json
 {
   "checkout-worktree.gitFolders": ["~/code", "~/projects"],
-  "checkout-worktree.postCheckoutCommand": "mise run worktree:setup"
+  "checkout-worktree.postCheckoutCommand": "mise trust && mise run worktree:setup"
 }
 ```
 

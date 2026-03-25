@@ -42,7 +42,7 @@
         "checkout-worktree.postCheckoutCommand": {
           "type": "string",
           "default": "",
-          "description": "Shell command to run in the worktree directory after checkout (e.g. 'mise run worktree:setup'). Runs only for newly created worktrees."
+          "description": "Shell command to run in the worktree directory after checkout (e.g. 'mise trust && mise run worktree:setup'). Runs only for newly created worktrees."
         }
       }
     }
