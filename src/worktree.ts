@@ -93,7 +93,12 @@ function getWorktreeParentDir(repo: Repository): string {
   const configured = config.get<string>("worktreeParentDir", "");
 
   if (configured) {
-    return resolveHome(configured);
+    const resolved = resolveHome(configured);
+    // Resolve relative paths against the repo root
+    if (!path.isAbsolute(resolved)) {
+      return path.resolve(repo.rootUri.fsPath, resolved);
+    }
+    return resolved;
   }
 
   // Default: <repo-root>/.worktrees/ (inside repo, gitignored)
