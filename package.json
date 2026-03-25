@@ -68,7 +68,8 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "vscode:prepublish": "tsc -p ./",
-    "package": "vsce package"
+    "package": "vsce package",
+    "cursor:install": "npm run compile && vsce package --no-dependencies -o checkout-worktree.vsix && cursor --install-extension checkout-worktree.vsix && rm checkout-worktree.vsix"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",

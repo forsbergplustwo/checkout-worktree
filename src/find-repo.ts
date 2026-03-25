@@ -110,23 +110,28 @@ async function cloneRepository(
   // Ensure parent directory exists
   await fs.mkdir(parentDir, { recursive: true });
 
-  // Clone via VS Code's built-in git command
-  await vscode.window.withProgress(
+  // Clone via the git extension API
+  const clonedUri = await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
       title: `Cloning ${repoName}…`,
       cancellable: false,
     },
-    async () => {
-      await vscode.commands.executeCommand("git.clone", cloneUri, parentDir);
-    }
+    () => git.clone(vscode.Uri.parse(cloneUri), {
+      parentPath: vscode.Uri.file(parentDir),
+      postCloneAction: "none",
+    })
   );
 
+  if (!clonedUri) {
+    throw new Error(`Clone failed for "${cloneUri}"`);
+  }
+
   // Open the freshly cloned repo
-  const repo = await git.openRepository(vscode.Uri.file(targetPath));
+  const repo = await git.openRepository(clonedUri);
   if (!repo) {
     throw new Error(
-      `Clone appeared to succeed but couldn't open repository at "${targetPath}"`
+      `Clone appeared to succeed but couldn't open repository at "${clonedUri.fsPath}"`
     );
   }
 

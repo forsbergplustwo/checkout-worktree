@@ -17,6 +17,7 @@ export interface GitExtension {
 export interface GitAPI {
   readonly repositories: Repository[];
   openRepository(root: vscode.Uri): Promise<Repository | null>;
+  clone(uri: vscode.Uri, options?: { parentPath?: vscode.Uri; ref?: string; postCloneAction?: "none" }): Promise<vscode.Uri | null>;
 }
 
 export interface Repository {
