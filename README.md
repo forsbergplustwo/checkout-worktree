@@ -72,5 +72,5 @@ vscode://forsbergplustwo.checkout-worktree?repo=orderly-emails&ref=fix/issue-123
 After installing, open VS Code settings (`Cmd+,`) and search for "Checkout Worktree":
 
 - **Git Folders** — add the parent directories where your repos live (e.g. `~/code`, `~/projects`). The extension scans these to find repos by name.
-- **Worktree Parent Dir** — optional override for where worktrees get created. Defaults to `<repo>-worktrees/` next to each repo.
+- **Worktree Parent Dir** — optional override for where worktrees get created. Defaults to `.worktrees/` inside the repo root. Add `.worktrees/` to your `.gitignore`.
 - **Post Checkout Command** — shell command to run in the worktree after creation (e.g. `mise run setup-worktree`). Only runs for newly created worktrees, not when opening an existing one.

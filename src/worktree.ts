@@ -58,9 +58,9 @@ function getWorktreeParentDir(repo: Repository): string {
     return configured.replace(/^~/, process.env.HOME ?? "~");
   }
 
-  // Default: <repo-root>-worktrees/ (sibling of repo)
+  // Default: <repo-root>/.worktrees/ (inside repo, gitignored)
   const repoRoot = repo.rootUri.fsPath;
-  return `${repoRoot}-worktrees`;
+  return path.join(repoRoot, ".worktrees");
 }
 
 /**

@@ -32,7 +32,7 @@
         "checkout-worktree.worktreeParentDir": {
           "type": "string",
           "default": "",
-          "description": "Parent directory for new worktrees. Defaults to a '-worktrees' sibling of the repo."
+          "description": "Parent directory for new worktrees. Defaults to '.worktrees/' inside the repo root (add to .gitignore)."
         },
         "checkout-worktree.postCheckoutCommand": {
           "type": "string",
