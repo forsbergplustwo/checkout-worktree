@@ -10,6 +10,7 @@
 
 import * as vscode from "vscode";
 import * as path from "path";
+import * as cp from "child_process";
 import type { Repository } from "./git-api";
 
 /**
@@ -43,6 +44,9 @@ export async function checkoutWorktree(
     () => repo.createWorktree({ path: worktreePath, commitish: `origin/${ref}`, branch: ref })
   );
 
+  // Run post-checkout hook if configured
+  await runPostCheckoutHook(worktreePath);
+
   await openFolder(worktreePath);
 }
 
@@ -57,6 +61,43 @@ function getWorktreeParentDir(repo: Repository): string {
   // Default: <repo-root>-worktrees/ (sibling of repo)
   const repoRoot = repo.rootUri.fsPath;
   return `${repoRoot}-worktrees`;
+}
+
+/**
+ * Run the configured post-checkout command in the worktree directory.
+ * Skips silently if no command is configured.
+ */
+async function runPostCheckoutHook(worktreePath: string): Promise<void> {
+  const config = vscode.workspace.getConfiguration("checkout-worktree");
+  const command = config.get<string>("postCheckoutCommand", "");
+
+  if (!command) {
+    return;
+  }
+
+  await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: `Running post-checkout: ${command}`,
+      cancellable: false,
+    },
+    () =>
+      new Promise<void>((resolve, reject) => {
+        cp.exec(command, { cwd: worktreePath }, (err, stdout, stderr) => {
+          if (err) {
+            const output = stderr || stdout || err.message;
+            reject(new Error(`Post-checkout hook failed: ${output}`));
+          } else {
+            if (stdout.trim()) {
+              vscode.window.showInformationMessage(
+                `Post-checkout: ${stdout.trim().split("\n").pop()}`
+              );
+            }
+            resolve();
+          }
+        });
+      })
+  );
 }
 
 async function openFolder(folderPath: string): Promise<void> {
