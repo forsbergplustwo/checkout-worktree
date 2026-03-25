@@ -43,7 +43,7 @@ export function parseURI(uri: vscode.Uri): ParsedURI {
 export async function handleURI(uri: vscode.Uri): Promise<void> {
   const parsed = parseURI(uri);
 
-  const repo = await findRepository(parsed.repo);
+  const repo = await findRepository(parsed.repo, parsed.uri);
   await checkoutWorktree(repo, parsed.ref);
 
   vscode.window.showInformationMessage(

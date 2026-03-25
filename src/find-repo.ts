@@ -1,9 +1,10 @@
 /**
- * find-repo.ts — Locate a git repository by name.
+ * find-repo.ts — Locate or clone a git repository by name.
  *
  * Search strategy (in order):
  * 1. Already-open repositories in VS Code (via git API)
  * 2. Configured gitFolders — scan one level deep for a directory matching the repo name
+ * 3. Clone from URI (if provided) into the first gitFolder, then open it
  */
 
 import * as vscode from "vscode";
@@ -12,10 +13,13 @@ import * as fs from "fs/promises";
 import { getGitAPI, type Repository } from "./git-api";
 
 /**
- * Find a repository by name. Returns the Repository if already open,
- * or opens it from a gitFolders match. Throws if not found.
+ * Find a repository by name. If not found locally and a clone URI is
+ * provided, offers to clone it. Returns the Repository instance.
  */
-export async function findRepository(repoName: string): Promise<Repository> {
+export async function findRepository(
+  repoName: string,
+  cloneUri?: string
+): Promise<Repository> {
   const git = getGitAPI();
 
   // 1. Check already-open repositories
@@ -31,13 +35,12 @@ export async function findRepository(repoName: string): Promise<Repository> {
   const gitFolders = config.get<string[]>("gitFolders", []);
 
   for (const folder of gitFolders) {
-    const resolvedFolder = folder.replace(/^~/, process.env.HOME ?? "~");
+    const resolvedFolder = resolveHome(folder);
     const candidate = path.join(resolvedFolder, repoName);
 
     try {
       const stat = await fs.stat(path.join(candidate, ".git"));
       if (stat.isDirectory() || stat.isFile()) {
-        // .git can be a file (worktree) or directory — both valid
         const repo = await git.openRepository(vscode.Uri.file(candidate));
         if (repo) {
           return repo;
@@ -48,7 +51,94 @@ export async function findRepository(repoName: string): Promise<Repository> {
     }
   }
 
+  // 3. Clone if we have a URI
+  if (cloneUri) {
+    return cloneRepository(repoName, cloneUri, gitFolders);
+  }
+
   throw new Error(
-    `Repository "${repoName}" not found. Check checkout-worktree.gitFolders setting.`
+    `Repository "${repoName}" not found locally. Provide a clone URI or check checkout-worktree.gitFolders setting.`
   );
+}
+
+/**
+ * Clone a repository into the first configured gitFolder (or ask the user
+ * to pick a directory), then open it in the git API.
+ */
+async function cloneRepository(
+  repoName: string,
+  cloneUri: string,
+  gitFolders: string[]
+): Promise<Repository> {
+  const git = getGitAPI();
+
+  // Determine clone target directory
+  let parentDir: string;
+
+  if (gitFolders.length > 0) {
+    parentDir = resolveHome(gitFolders[0]);
+  } else {
+    // No gitFolders configured — ask the user
+    const picked = await vscode.window.showOpenDialog({
+      canSelectFiles: false,
+      canSelectFolders: true,
+      canSelectMany: false,
+      openLabel: "Clone into this folder",
+      title: `Choose a parent folder for cloning ${repoName}`,
+    });
+
+    if (!picked || picked.length === 0) {
+      throw new Error("Clone cancelled — no folder selected");
+    }
+
+    parentDir = picked[0].fsPath;
+  }
+
+  const targetPath = path.join(parentDir, repoName);
+
+  // Check it doesn't already exist (race / edge case)
+  try {
+    await fs.access(targetPath);
+    throw new Error(
+      `Directory "${targetPath}" already exists but wasn't detected as a git repo`
+    );
+  } catch (err: unknown) {
+    if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw err;
+    }
+    // ENOENT = good, directory doesn't exist
+  }
+
+  // Ensure parent directory exists
+  await fs.mkdir(parentDir, { recursive: true });
+
+  // Clone via VS Code's built-in git command
+  await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: `Cloning ${repoName}…`,
+      cancellable: false,
+    },
+    async () => {
+      await vscode.commands.executeCommand(
+        "git.clone",
+        cloneUri,
+        parentDir
+      );
+    }
+  );
+
+  // Open the freshly cloned repo
+  const repo = await git.openRepository(vscode.Uri.file(targetPath));
+  if (!repo) {
+    throw new Error(
+      `Clone appeared to succeed but couldn't open repository at "${targetPath}"`
+    );
+  }
+
+  return repo;
+}
+
+function resolveHome(p: string): string {
+  return p.replace(/^~/, process.env.HOME ?? "~");
 }

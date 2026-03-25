@@ -28,10 +28,11 @@ vscode://forsbergplustwo.checkout-worktree?repo=orderly-emails&ref=fix/issue-123
 ## How It Works
 
 1. Finds the repository (open in VS Code, or in configured `gitFolders`)
-2. Fetches `origin` to get latest refs
-3. Checks if a worktree for the branch already exists
-4. Creates a new worktree if needed
-5. Opens the worktree folder in VS Code
+2. If not found locally and `uri` is provided, clones the repo into the first `gitFolders` entry (or asks you to pick a folder)
+3. Fetches `origin` to get latest refs
+4. Checks if a worktree for the branch already exists
+5. Creates a new worktree if needed
+6. Opens the worktree folder in VS Code
 
 ## Install
 
