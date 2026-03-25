@@ -68,15 +68,15 @@ Open VS Code settings (`Cmd+,`) and search for "Checkout Worktree":
 ```sh
 git clone https://github.com/forsbergplustwo/checkout-worktree.git
 cd checkout-worktree
-npm install
+pnpm install
 ```
 
 Then install for your editor:
 
 ```sh
-npm run install:cursor    # Cursor
-npm run install:vscode    # VS Code
-npm run install:windsurf  # Windsurf
+pnpm install:cursor    # Cursor
+pnpm install:vscode    # VS Code
+pnpm install:windsurf  # Windsurf
 ```
 
 Reload the editor window after installing (`Cmd+Shift+P` → **Developer: Reload Window**).
