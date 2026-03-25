@@ -1,6 +1,6 @@
 # Checkout Worktree
 
-VS Code extension that checks out git branches as local worktrees from a URI link. Click a link → open the branch locally in VS Code — no manual `git worktree add` needed.
+One-click branch checkout for VS Code using git worktrees. Open a `vscode://` link from a PR, CI dashboard, or chat message — and land directly in an isolated worktree for that branch. No stashing, no switching, no manual `git worktree add`.
 
 ## URI Format
 
