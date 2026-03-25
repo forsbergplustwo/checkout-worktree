@@ -1,0 +1,50 @@
+{
+  "name": "checkout-worktree",
+  "displayName": "Checkout Worktree",
+  "description": "Open a git worktree from a URI — fetch, create worktree, open folder.",
+  "version": "0.1.0",
+  "publisher": "forsbergplustwo",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onUri"
+  ],
+  "main": "./out/extension.js",
+  "extensionDependencies": [
+    "vscode.git"
+  ],
+  "contributes": {
+    "configuration": {
+      "title": "Checkout Worktree",
+      "properties": {
+        "checkout-worktree.gitFolders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Folders containing your git repositories (searched when resolving repo names)."
+        },
+        "checkout-worktree.worktreeParentDir": {
+          "type": "string",
+          "default": "",
+          "description": "Parent directory for new worktrees. Defaults to a '-worktrees' sibling of the repo."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0"
+  }
+}
