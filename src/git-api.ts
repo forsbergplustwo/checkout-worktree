@@ -47,12 +47,12 @@ export interface Worktree {
 
 export function getGitAPI(): GitAPI {
   const ext = vscode.extensions.getExtension<GitExtension>("vscode.git");
-  if (!ext) {
-    throw new Error("Git extension (vscode.git) not found");
+  if (!ext?.isActive) {
+    throw new Error("Git extension (vscode.git) not found or not active");
   }
 
-  const git = ext.isActive ? ext.exports : undefined;
-  if (!git?.enabled) {
+  const git = ext.exports;
+  if (!git.enabled) {
     throw new Error("Git extension is not enabled");
   }
 

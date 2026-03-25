@@ -11,6 +11,7 @@ import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs/promises";
 import { getGitAPI, type Repository } from "./git-api";
+import { resolveHome } from "./utils";
 
 /**
  * Find a repository by name. If not found locally and a clone URI is
@@ -46,8 +47,10 @@ export async function findRepository(
           return repo;
         }
       }
-    } catch {
-      // Not found here, try next folder
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+        throw err;
+      }
     }
   }
 
@@ -96,17 +99,12 @@ async function cloneRepository(
 
   const targetPath = path.join(parentDir, repoName);
 
-  // Check it doesn't already exist (race / edge case)
-  try {
-    await fs.access(targetPath);
+  // Check target doesn't already exist
+  const exists = await fs.stat(targetPath).then(() => true, () => false);
+  if (exists) {
     throw new Error(
       `Directory "${targetPath}" already exists but wasn't detected as a git repo`
     );
-  } catch (err: unknown) {
-    if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code !== "ENOENT") {
-      throw err;
-    }
-    // ENOENT = good, directory doesn't exist
   }
 
   // Ensure parent directory exists
@@ -120,11 +118,7 @@ async function cloneRepository(
       cancellable: false,
     },
     async () => {
-      await vscode.commands.executeCommand(
-        "git.clone",
-        cloneUri,
-        parentDir
-      );
+      await vscode.commands.executeCommand("git.clone", cloneUri, parentDir);
     }
   );
 
@@ -137,8 +131,4 @@ async function cloneRepository(
   }
 
   return repo;
-}
-
-function resolveHome(p: string): string {
-  return p.replace(/^~/, process.env.HOME ?? "~");
 }

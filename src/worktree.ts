@@ -13,6 +13,7 @@ import * as path from "path";
 import * as cp from "child_process";
 import * as fs from "fs/promises";
 import type { Repository } from "./git-api";
+import { resolveHome } from "./utils";
 
 /**
  * Ensure a worktree exists for the given ref (branch name) and open it.
@@ -39,7 +40,7 @@ export async function checkoutWorktree(
   const safeBranch = ref.replace(/\//g, "-");
   const worktreePath = path.join(worktreeDir, safeBranch);
 
-  // Ensure .worktrees is in .gitignore
+  // Ensure .worktrees is in .gitignore (only modifies if worktree dir is inside repo)
   await ensureGitignored(repo.rootUri.fsPath, worktreeDir);
 
   // Create worktree
@@ -59,12 +60,11 @@ function getWorktreeParentDir(repo: Repository): string {
   const configured = config.get<string>("worktreeParentDir", "");
 
   if (configured) {
-    return configured.replace(/^~/, process.env.HOME ?? "~");
+    return resolveHome(configured);
   }
 
   // Default: <repo-root>/.worktrees/ (inside repo, gitignored)
-  const repoRoot = repo.rootUri.fsPath;
-  return path.join(repoRoot, ".worktrees");
+  return path.join(repo.rootUri.fsPath, ".worktrees");
 }
 
 /**
@@ -84,7 +84,10 @@ async function ensureGitignored(repoRoot: string, worktreeDir: string): Promise<
   let content = "";
   try {
     content = await fs.readFile(gitignorePath, "utf-8");
-  } catch {
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw err;
+    }
     // No .gitignore yet — we'll create one
   }
 
@@ -142,5 +145,5 @@ async function runPostCheckoutHook(worktreePath: string): Promise<void> {
 
 async function openFolder(folderPath: string): Promise<void> {
   const uri = vscode.Uri.file(folderPath);
-  await vscode.commands.executeCommand("vscode.openFolder", uri, { forceNewWindow: false });
+  await vscode.commands.executeCommand("vscode.openFolder", uri, { forceNewWindow: true });
 }
