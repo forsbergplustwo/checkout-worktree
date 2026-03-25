@@ -59,7 +59,7 @@ Open VS Code settings (`Cmd+,`) and search for "Checkout Worktree":
 {
   "checkout-worktree.gitFolders": ["~/code", "~/projects"],
   "checkout-worktree.worktreeParentDir": "~/.worktrees",
-  "checkout-worktree.postCheckoutCommand": "mise run worktree:setup"
+  "checkout-worktree.postCheckoutCommand": "mise trust && mise run worktree:setup"
 }
 ```
 
@@ -95,3 +95,18 @@ Open VS Code settings (`Cmd+,`) and search for "Checkout Worktree":
 
 2. Open the `checkout-worktree` folder in VS Code
 3. Press `F5` to launch an Extension Development Host with the extension loaded
+
+## Post-Install Setup
+
+After installing, configure `gitFolders` so the extension knows where your repos live. Without this, it won't find repos that aren't currently open in VS Code.
+
+Open your editor settings (`Cmd+,` → search "Checkout Worktree") or add to `settings.json`:
+
+```json
+{
+  "checkout-worktree.gitFolders": ["~/forsbergProjects"],
+  "checkout-worktree.postCheckoutCommand": "mise trust && mise run worktree:setup"
+}
+```
+
+> **Important:** `gitFolders` should list the **parent directories** that contain your repos (e.g. `~/forsbergProjects`), not the repos themselves. The extension scans one level deep to find repos by name.
