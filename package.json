@@ -54,7 +54,7 @@
         "checkout-worktree.worktreeParentDir": {
           "type": "string",
           "default": "",
-          "description": "Parent directory for new worktrees. Defaults to '.worktrees/' inside the repo root (added to .gitignore if not already present)."
+          "description": "Parent directory for new worktrees. Relative paths (e.g. './.worktrees') resolve against the repo root. Defaults to '<repo-root>/.worktrees/' (auto-added to .gitignore)."
         },
         "checkout-worktree.postCheckoutCommand": {
           "type": "string",
