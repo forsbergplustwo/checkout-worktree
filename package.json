@@ -69,7 +69,9 @@
     "watch": "tsc -watch -p ./",
     "vscode:prepublish": "tsc -p ./",
     "package": "vsce package",
-    "cursor:install": "npm run compile && vsce package --no-dependencies -o checkout-worktree.vsix && cursor --install-extension checkout-worktree.vsix && rm checkout-worktree.vsix"
+    "install:cursor": "npm run compile && vsce package --no-dependencies -o checkout-worktree.vsix && cursor --install-extension checkout-worktree.vsix && rm checkout-worktree.vsix",
+    "install:vscode": "npm run compile && vsce package --no-dependencies -o checkout-worktree.vsix && code --install-extension checkout-worktree.vsix && rm checkout-worktree.vsix",
+    "install:windsurf": "npm run compile && vsce package --no-dependencies -o checkout-worktree.vsix && windsurf --install-extension checkout-worktree.vsix && rm checkout-worktree.vsix"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
