@@ -33,7 +33,8 @@
     "Other"
   ],
   "activationEvents": [
-    "onUri"
+    "onUri",
+    "onStartupFinished"
   ],
   "main": "./out/extension.js",
   "extensionDependencies": [

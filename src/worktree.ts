@@ -21,8 +21,7 @@ import { log } from "./extension";
  */
 export async function checkoutWorktree(
   repo: Repository,
-  ref: string,
-  baseBranch?: string
+  ref: string
 ): Promise<void> {
   // Fetch to make sure we have the latest refs
   await vscode.window.withProgress(
@@ -78,10 +77,8 @@ export async function checkoutWorktree(
     throw new Error(`Worktree directory not found after creation: ${worktreePath}`);
   }
 
-  // Soft-reset branch commits so they appear as staged changes
-  if (baseBranch) {
-    await softResetToBase(worktreePath, baseBranch);
-  }
+  // Write state file so the new window knows to focus the PR view
+  await writeStateFile(worktreePath, { focusPR: true });
 
   // Run post-checkout hook if configured
   await runPostCheckoutHook(worktreePath);
@@ -217,43 +214,39 @@ async function runPostCheckoutHook(worktreePath: string): Promise<void> {
   );
 }
 
+const STATE_FILE = ".checkout-worktree-state.json";
+
+export interface WorktreeState {
+  focusPR?: boolean;
+}
+
 /**
- * Soft-reset all commits back to the fork point with the base branch.
- * All branch changes become staged — ready to review, modify, recommit.
+ * Write a state file into the worktree directory.
+ * The new window reads this on activation to perform post-open actions.
  */
-async function softResetToBase(worktreePath: string, baseBranch: string): Promise<void> {
-  return new Promise<void>((resolve) => {
-    // Find the fork point
-    const mergeBaseCmd = `git merge-base origin/${baseBranch} HEAD`;
-    log(`[soft-reset] ${mergeBaseCmd} (cwd: ${worktreePath})`);
+async function writeStateFile(worktreePath: string, state: WorktreeState): Promise<void> {
+  const filePath = path.join(worktreePath, STATE_FILE);
+  try {
+    await fs.writeFile(filePath, JSON.stringify(state, null, 2), "utf-8");
+    log(`[state] wrote ${filePath}`);
+  } catch (err) {
+    log(`[state] write failed (non-fatal): ${err}`);
+  }
+}
 
-    cp.exec(mergeBaseCmd, { cwd: worktreePath, timeout: 10000 }, (err, stdout, stderr) => {
-      if (err) {
-        log(`[soft-reset] merge-base failed (non-fatal): ${stderr || err.message}`);
-        resolve();
-        return;
-      }
-
-      const forkPoint = stdout.trim();
-      if (!forkPoint) {
-        log(`[soft-reset] no fork point found (non-fatal)`);
-        resolve();
-        return;
-      }
-
-      const resetCmd = `git reset --soft ${forkPoint}`;
-      log(`[soft-reset] ${resetCmd}`);
-
-      cp.exec(resetCmd, { cwd: worktreePath, timeout: 10000 }, (resetErr, _out, resetStderr) => {
-        if (resetErr) {
-          log(`[soft-reset] reset failed (non-fatal): ${resetStderr || resetErr.message}`);
-        } else {
-          log(`[soft-reset] done — commits squashed to staged changes`);
-        }
-        resolve();
-      });
-    });
-  });
+/**
+ * Read and delete the state file from the workspace root.
+ * Returns null if no state file exists.
+ */
+export async function consumeStateFile(workspaceRoot: string): Promise<WorktreeState | null> {
+  const filePath = path.join(workspaceRoot, STATE_FILE);
+  try {
+    const content = await fs.readFile(filePath, "utf-8");
+    await fs.unlink(filePath);
+    return JSON.parse(content) as WorktreeState;
+  } catch {
+    return null;
+  }
 }
 
 const PROTECTED_BRANCHES = new Set(["main", "master"]);
