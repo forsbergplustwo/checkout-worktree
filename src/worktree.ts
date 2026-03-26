@@ -45,29 +45,46 @@ export async function checkoutWorktree(
   // Ensure .worktrees is in .gitignore (only modifies if worktree dir is inside repo)
   await ensureGitignored(repo.rootUri.fsPath, worktreeDir);
 
+  const log = vscode.window.createOutputChannel("Checkout Worktree");
+
   // Create worktree via CLI — repo.createWorktree() isn't available in all editors (e.g. Cursor)
+  const cmd = `git worktree add -b ${ref} ${JSON.stringify(worktreePath)} origin/${ref}`;
+  log.appendLine(`[create] cmd: ${cmd}`);
+  log.appendLine(`[create] cwd: ${repo.rootUri.fsPath}`);
+
   await vscode.window.withProgress(
     { location: vscode.ProgressLocation.Notification, title: `Creating worktree for ${ref}…` },
     () =>
       new Promise<void>((resolve, reject) => {
-        cp.exec(
-          `git worktree add -b ${ref} ${JSON.stringify(worktreePath)} origin/${ref}`,
-          { cwd: repo.rootUri.fsPath, timeout: 30000 },
-          (err) => {
-            if (err) {
-              reject(new Error(`git worktree add failed: ${err.message}`));
-            } else {
-              resolve();
-            }
+        cp.exec(cmd, { cwd: repo.rootUri.fsPath, timeout: 30000 }, (err, stdout, stderr) => {
+          log.appendLine(`[create] callback fired. err=${err ? err.message : "null"}`);
+          log.appendLine(`[create] stdout: ${stdout}`);
+          log.appendLine(`[create] stderr: ${stderr}`);
+          if (err) {
+            reject(new Error(`git worktree add failed: ${err.message}`));
+          } else {
+            resolve();
           }
-        );
+        });
       })
   );
+
+  // Verify the worktree directory exists before proceeding
+  try {
+    const stat = await fs.stat(worktreePath);
+    log.appendLine(`[create] worktree exists: isDir=${stat.isDirectory()}`);
+  } catch (e) {
+    log.appendLine(`[create] worktree NOT FOUND at ${worktreePath}`);
+    log.show();
+    throw new Error(`Worktree directory not found after creation: ${worktreePath}`);
+  }
 
   // Run post-checkout hook if configured
   await runPostCheckoutHook(worktreePath);
 
+  log.appendLine(`[open] about to open: ${worktreePath}`);
   await openFolder(worktreePath);
+  log.appendLine(`[open] openFolder returned`);
 }
 
 /**
