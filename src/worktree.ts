@@ -14,6 +14,7 @@ import * as cp from "child_process";
 import * as fs from "fs/promises";
 import type { Repository } from "./git-api";
 import { resolveHome } from "./utils";
+import { log } from "./extension";
 
 /**
  * Ensure a worktree exists for the given ref (branch name) and open it.
@@ -45,21 +46,19 @@ export async function checkoutWorktree(
   // Ensure .worktrees is in .gitignore (only modifies if worktree dir is inside repo)
   await ensureGitignored(repo.rootUri.fsPath, worktreeDir);
 
-  const log = vscode.window.createOutputChannel("Checkout Worktree");
-
   // Create worktree via CLI — repo.createWorktree() isn't available in all editors (e.g. Cursor)
   const cmd = `git worktree add -b ${ref} ${JSON.stringify(worktreePath)} origin/${ref}`;
-  log.appendLine(`[create] cmd: ${cmd}`);
-  log.appendLine(`[create] cwd: ${repo.rootUri.fsPath}`);
+  log(`[create] cmd: ${cmd}`);
+  log(`[create] cwd: ${repo.rootUri.fsPath}`);
 
   await vscode.window.withProgress(
     { location: vscode.ProgressLocation.Notification, title: `Creating worktree for ${ref}…` },
     () =>
       new Promise<void>((resolve, reject) => {
         cp.exec(cmd, { cwd: repo.rootUri.fsPath, timeout: 30000 }, (err, stdout, stderr) => {
-          log.appendLine(`[create] callback fired. err=${err ? err.message : "null"}`);
-          log.appendLine(`[create] stdout: ${stdout}`);
-          log.appendLine(`[create] stderr: ${stderr}`);
+          log(`[create] callback fired. err=${err ? err.message : "null"}`);
+          log(`[create] stdout: ${stdout}`);
+          log(`[create] stderr: ${stderr}`);
           if (err) {
             reject(new Error(`git worktree add failed: ${err.message}`));
           } else {
@@ -72,19 +71,18 @@ export async function checkoutWorktree(
   // Verify the worktree directory exists before proceeding
   try {
     const stat = await fs.stat(worktreePath);
-    log.appendLine(`[create] worktree exists: isDir=${stat.isDirectory()}`);
+    log(`[create] worktree exists: isDir=${stat.isDirectory()}`);
   } catch (e) {
-    log.appendLine(`[create] worktree NOT FOUND at ${worktreePath}`);
-    log.show();
+    log(`[create] worktree NOT FOUND at ${worktreePath}`);
     throw new Error(`Worktree directory not found after creation: ${worktreePath}`);
   }
 
   // Run post-checkout hook if configured
   await runPostCheckoutHook(worktreePath);
 
-  log.appendLine(`[open] about to open: ${worktreePath}`);
+  log(`[open] about to open: ${worktreePath}`);
   await openFolder(worktreePath);
-  log.appendLine(`[open] openFolder returned`);
+  log(`[open] openFolder returned`);
 }
 
 /**
@@ -246,7 +244,6 @@ async function resetWorktree(worktreePath: string, ref: string): Promise<void> {
 }
 
 async function openFolder(folderPath: string): Promise<void> {
-  const log = vscode.window.createOutputChannel("Checkout Worktree");
   const appName = vscode.env.appName.toLowerCase();
   let cli: string;
   if (appName.includes("cursor")) {
@@ -259,9 +256,9 @@ async function openFolder(folderPath: string): Promise<void> {
     cli = "code";
   }
 
-  log.appendLine(`openFolder: path=${folderPath}`);
-  log.appendLine(`openFolder: appName=${vscode.env.appName}, cli=${cli}`);
-  log.appendLine(`openFolder: spawning: ${cli} --new-window ${folderPath}`);
+  log(`[open] path=${folderPath}`);
+  log(`[open] appName=${vscode.env.appName}, cli=${cli}`);
+  log(`[open] spawning: ${cli} --new-window ${folderPath}`);
 
   const child = cp.spawn(cli, ["--new-window", folderPath], {
     detached: true,
@@ -269,5 +266,5 @@ async function openFolder(folderPath: string): Promise<void> {
     shell: true,
   });
   child.unref();
-  log.appendLine(`openFolder: spawned pid=${child.pid}`);
+  log(`[open] spawned pid=${child.pid}`);
 }
