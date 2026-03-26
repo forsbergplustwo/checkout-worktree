@@ -255,36 +255,18 @@ async function resetWorktree(worktreePath: string, ref: string): Promise<void> {
  * Set the upstream tracking branch so Compare Branch auto-detects the base.
  * Runs: git branch --set-upstream-to=origin/<baseBranch> <ref>
  */
-/**
- * Set the upstream tracking branch so Compare Branch auto-detects the base,
- * and set push.default=current so `git push` still targets the feature branch.
- */
 async function setUpstream(worktreePath: string, ref: string, baseBranch: string): Promise<void> {
-  // Set upstream for Compare Branch's auto-detect (controls pull/fetch target)
-  const upstreamCmd = `git branch --set-upstream-to=origin/${baseBranch} ${ref}`;
-  // Ensure push goes to the feature branch, not the base branch
-  const pushCmd = `git config --local push.default current`;
-
-  log(`[upstream] ${upstreamCmd} (cwd: ${worktreePath})`);
-  log(`[upstream] ${pushCmd}`);
-
+  const cmd = `git branch --set-upstream-to=origin/${baseBranch} ${ref}`;
+  log(`[upstream] ${cmd} (cwd: ${worktreePath})`);
   return new Promise<void>((resolve) => {
-    cp.exec(upstreamCmd, { cwd: worktreePath, timeout: 10000 }, (err, _stdout, stderr) => {
+    cp.exec(cmd, { cwd: worktreePath, timeout: 10000 }, (err, stdout, stderr) => {
       if (err) {
-        log(`[upstream] set-upstream failed (non-fatal): ${stderr || err.message}`);
-        resolve();
-        return;
+        log(`[upstream] failed (non-fatal): ${stderr || err.message}`);
+      } else {
+        log(`[upstream] set to origin/${baseBranch}`);
       }
-      log(`[upstream] tracking set to origin/${baseBranch}`);
-      // Only set push.default if upstream succeeded
-      cp.exec(pushCmd, { cwd: worktreePath, timeout: 5000 }, (pushErr) => {
-        if (pushErr) {
-          log(`[upstream] push.default failed (non-fatal): ${pushErr.message}`);
-        } else {
-          log(`[upstream] push.default=current (push targets origin/${ref})`);
-        }
-        resolve();
-      });
+      // Non-fatal — don't block worktree opening if this fails
+      resolve();
     });
   });
 }
