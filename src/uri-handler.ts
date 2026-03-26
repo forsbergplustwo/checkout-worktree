@@ -18,7 +18,6 @@ export interface ParsedURI {
   repo: string;
   ref: string;
   uri?: string;
-  baseBranch?: string;
 }
 
 export function parseURI(uri: vscode.Uri): ParsedURI {
@@ -38,7 +37,6 @@ export function parseURI(uri: vscode.Uri): ParsedURI {
     repo,
     ref,
     uri: params.get("uri") ?? undefined,
-    baseBranch: params.get("baseBranch") ?? undefined,
   };
 }
 
@@ -46,7 +44,7 @@ export async function handleURI(uri: vscode.Uri): Promise<void> {
   const parsed = parseURI(uri);
 
   const repo = await findRepository(parsed.repo, parsed.uri);
-  await checkoutWorktree(repo, parsed.ref, parsed.baseBranch);
+  await checkoutWorktree(repo, parsed.ref);
 
   vscode.window.showInformationMessage(
     `Opened worktree for ${parsed.ref} in ${parsed.repo}`

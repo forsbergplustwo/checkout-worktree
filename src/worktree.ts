@@ -21,8 +21,7 @@ import { log } from "./extension";
  */
 export async function checkoutWorktree(
   repo: Repository,
-  ref: string,
-  baseBranch?: string
+  ref: string
 ): Promise<void> {
   // Fetch to make sure we have the latest refs
   await vscode.window.withProgress(
@@ -35,9 +34,6 @@ export async function checkoutWorktree(
   if (existingPath) {
     await resetWorktree(existingPath, ref);
     await runPostCheckoutHook(existingPath);
-    if (baseBranch) {
-      await setUpstream(existingPath, ref, baseBranch);
-    }
     await openFolder(existingPath);
     return;
   }
@@ -83,10 +79,6 @@ export async function checkoutWorktree(
 
   // Run post-checkout hook if configured
   await runPostCheckoutHook(worktreePath);
-
-  if (baseBranch) {
-    await setUpstream(worktreePath, ref, baseBranch);
-  }
 
   log(`[open] about to open: ${worktreePath}`);
   await openFolder(worktreePath);
@@ -249,26 +241,6 @@ async function resetWorktree(worktreePath: string, ref: string): Promise<void> {
         });
       })
   );
-}
-
-/**
- * Set the upstream tracking branch so Compare Branch auto-detects the base.
- * Runs: git branch --set-upstream-to=origin/<baseBranch> <ref>
- */
-async function setUpstream(worktreePath: string, ref: string, baseBranch: string): Promise<void> {
-  const cmd = `git branch --set-upstream-to=origin/${baseBranch} ${ref}`;
-  log(`[upstream] ${cmd} (cwd: ${worktreePath})`);
-  return new Promise<void>((resolve) => {
-    cp.exec(cmd, { cwd: worktreePath, timeout: 10000 }, (err, stdout, stderr) => {
-      if (err) {
-        log(`[upstream] failed (non-fatal): ${stderr || err.message}`);
-      } else {
-        log(`[upstream] set to origin/${baseBranch}`);
-      }
-      // Non-fatal — don't block worktree opening if this fails
-      resolve();
-    });
-  });
 }
 
 async function openFolder(folderPath: string): Promise<void> {
