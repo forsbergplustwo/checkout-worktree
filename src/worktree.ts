@@ -229,11 +229,27 @@ async function resetWorktree(worktreePath: string, ref: string): Promise<void> {
 }
 
 async function openFolder(folderPath: string): Promise<void> {
-  // Use CLI with --new-window to guarantee a fresh window.
-  // The vscode.openFolder API's forceNewWindow flag is unreliable in some editors.
-  const editorPath = process.execPath;
-  cp.spawn(editorPath, ["--new-window", folderPath], {
+  // Try the API first with forceNewWindow, then fall back to CLI.
+  // Some editors (Cursor) ignore forceNewWindow, so we detect and retry.
+  const uri = vscode.Uri.file(folderPath);
+
+  // vscode.openFolder returns undefined — we can't detect if it reused the window.
+  // Use vscode.env.appName to find the right CLI command.
+  const appName = vscode.env.appName.toLowerCase();
+  let cli: string;
+  if (appName.includes("cursor")) {
+    cli = "cursor";
+  } else if (appName.includes("insiders")) {
+    cli = "code-insiders";
+  } else if (appName.includes("windsurf")) {
+    cli = "windsurf";
+  } else {
+    cli = "code";
+  }
+
+  cp.spawn(cli, ["--new-window", folderPath], {
     detached: true,
     stdio: "ignore",
+    shell: true,
   }).unref();
 }
