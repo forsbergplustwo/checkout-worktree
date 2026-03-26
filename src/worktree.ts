@@ -244,27 +244,10 @@ async function resetWorktree(worktreePath: string, ref: string): Promise<void> {
 }
 
 async function openFolder(folderPath: string): Promise<void> {
-  const appName = vscode.env.appName.toLowerCase();
-  let cli: string;
-  if (appName.includes("cursor")) {
-    cli = "cursor";
-  } else if (appName.includes("insiders")) {
-    cli = "code-insiders";
-  } else if (appName.includes("windsurf")) {
-    cli = "windsurf";
-  } else {
-    cli = "code";
-  }
-
-  log(`[open] path=${folderPath}`);
-  log(`[open] appName=${vscode.env.appName}, cli=${cli}`);
-  log(`[open] spawning: ${cli} --new-window ${folderPath}`);
-
-  const child = cp.spawn(cli, ["--new-window", folderPath], {
-    detached: true,
-    stdio: "ignore",
-    shell: true,
+  log(`[open] opening in new window: ${folderPath}`);
+  const uri = vscode.Uri.file(folderPath);
+  await vscode.commands.executeCommand("vscode.openFolder", uri, {
+    forceNewWindow: true,
   });
-  child.unref();
-  log(`[open] spawned pid=${child.pid}`);
+  log(`[open] vscode.openFolder returned`);
 }
