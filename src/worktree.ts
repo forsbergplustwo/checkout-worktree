@@ -216,6 +216,11 @@ async function resetWorktree(worktreePath: string, ref: string): Promise<void> {
 }
 
 async function openFolder(folderPath: string): Promise<void> {
-  const uri = vscode.Uri.file(folderPath);
-  await vscode.commands.executeCommand("vscode.openFolder", uri, { forceNewWindow: true });
+  // Use CLI with --new-window to guarantee a fresh window.
+  // The vscode.openFolder API's forceNewWindow flag is unreliable in some editors.
+  const editorPath = process.execPath;
+  cp.spawn(editorPath, ["--new-window", folderPath], {
+    detached: true,
+    stdio: "ignore",
+  }).unref();
 }
