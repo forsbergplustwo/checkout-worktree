@@ -7,26 +7,26 @@
  */
 
 import * as vscode from "vscode";
-import * as fs from "fs";
-import * as os from "os";
-import * as path from "path";
 import { handleURI } from "./uri-handler";
 
-const LOG_FILE = path.join(os.tmpdir(), "checkout-worktree.log");
+let _channel: vscode.OutputChannel;
 
 export function log(msg: string): void {
-  const line = `[${new Date().toISOString()}] ${msg}\n`;
-  fs.appendFileSync(LOG_FILE, line);
+  const line = `[${new Date().toISOString()}] ${msg}`;
+  _channel.appendLine(line);
 }
 
 export function activate(context: vscode.ExtensionContext): void {
-  log(`activate: extension activated. logFile=${LOG_FILE}`);
-  log(`activate: appName=${vscode.env.appName}, appRoot=${vscode.env.appRoot}`);
+  _channel = vscode.window.createOutputChannel("Checkout Worktree");
+  context.subscriptions.push(_channel);
+
+  log(`activated — appName=${vscode.env.appName}`);
 
   context.subscriptions.push(
     vscode.window.registerUriHandler({
       async handleUri(uri: vscode.Uri) {
         log(`handleUri: ${uri.toString()}`);
+        _channel.show(true); // show the output channel, preserve focus
         try {
           await handleURI(uri);
           log(`handleUri: completed successfully`);
@@ -40,6 +40,4 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 }
 
-export function deactivate(): void {
-  log(`deactivate: extension deactivated`);
-}
+export function deactivate(): void {}
