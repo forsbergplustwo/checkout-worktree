@@ -45,10 +45,23 @@ export async function checkoutWorktree(
   // Ensure .worktrees is in .gitignore (only modifies if worktree dir is inside repo)
   await ensureGitignored(repo.rootUri.fsPath, worktreeDir);
 
-  // Create worktree
+  // Create worktree via CLI — repo.createWorktree() isn't available in all editors (e.g. Cursor)
   await vscode.window.withProgress(
     { location: vscode.ProgressLocation.Notification, title: `Creating worktree for ${ref}…` },
-    () => repo.createWorktree({ path: worktreePath, commitish: `origin/${ref}`, branch: ref })
+    () =>
+      new Promise<void>((resolve, reject) => {
+        cp.exec(
+          `git worktree add -b ${ref} ${JSON.stringify(worktreePath)} origin/${ref}`,
+          { cwd: repo.rootUri.fsPath, timeout: 30000 },
+          (err) => {
+            if (err) {
+              reject(new Error(`git worktree add failed: ${err.message}`));
+            } else {
+              resolve();
+            }
+          }
+        );
+      })
   );
 
   // Run post-checkout hook if configured
