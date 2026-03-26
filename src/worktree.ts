@@ -21,7 +21,8 @@ import { log } from "./extension";
  */
 export async function checkoutWorktree(
   repo: Repository,
-  ref: string
+  ref: string,
+  baseBranch?: string
 ): Promise<void> {
   // Fetch to make sure we have the latest refs
   await vscode.window.withProgress(
@@ -75,6 +76,11 @@ export async function checkoutWorktree(
   } catch (e) {
     log(`[create] worktree NOT FOUND at ${worktreePath}`);
     throw new Error(`Worktree directory not found after creation: ${worktreePath}`);
+  }
+
+  // Soft-reset branch commits so they appear as staged changes
+  if (baseBranch) {
+    await softResetToBase(worktreePath, baseBranch);
   }
 
   // Run post-checkout hook if configured
@@ -209,6 +215,45 @@ async function runPostCheckoutHook(worktreePath: string): Promise<void> {
         });
       })
   );
+}
+
+/**
+ * Soft-reset all commits back to the fork point with the base branch.
+ * All branch changes become staged — ready to review, modify, recommit.
+ */
+async function softResetToBase(worktreePath: string, baseBranch: string): Promise<void> {
+  return new Promise<void>((resolve) => {
+    // Find the fork point
+    const mergeBaseCmd = `git merge-base origin/${baseBranch} HEAD`;
+    log(`[soft-reset] ${mergeBaseCmd} (cwd: ${worktreePath})`);
+
+    cp.exec(mergeBaseCmd, { cwd: worktreePath, timeout: 10000 }, (err, stdout, stderr) => {
+      if (err) {
+        log(`[soft-reset] merge-base failed (non-fatal): ${stderr || err.message}`);
+        resolve();
+        return;
+      }
+
+      const forkPoint = stdout.trim();
+      if (!forkPoint) {
+        log(`[soft-reset] no fork point found (non-fatal)`);
+        resolve();
+        return;
+      }
+
+      const resetCmd = `git reset --soft ${forkPoint}`;
+      log(`[soft-reset] ${resetCmd}`);
+
+      cp.exec(resetCmd, { cwd: worktreePath, timeout: 10000 }, (resetErr, _out, resetStderr) => {
+        if (resetErr) {
+          log(`[soft-reset] reset failed (non-fatal): ${resetStderr || resetErr.message}`);
+        } else {
+          log(`[soft-reset] done — commits squashed to staged changes`);
+        }
+        resolve();
+      });
+    });
+  });
 }
 
 const PROTECTED_BRANCHES = new Set(["main", "master"]);
