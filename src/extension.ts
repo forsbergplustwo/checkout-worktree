@@ -1,14 +1,14 @@
 /**
  * extension.ts — Entry point for the checkout-worktree extension.
  *
- * Registers a URI handler so that links like:
- *   vscode://forsbergplustwo.checkout-worktree?repo=orderly-emails&ref=fix/issue-123
- * will fetch the branch, create a worktree, and open it.
+ * Two activation paths:
+ * 1. onUri — URI handler in the original window (silent, just creates folder + opens new window)
+ * 2. onStartupFinished — new window reads state file and does all user-visible work
  */
 
 import * as vscode from "vscode";
 import { handleURI } from "./uri-handler";
-import { consumeStateFile } from "./worktree";
+import { consumeStateFile, resumeWorktreeSetup } from "./worktree";
 
 let _channel: vscode.OutputChannel;
 
@@ -23,17 +23,16 @@ export function activate(context: vscode.ExtensionContext): void {
 
   log(`activated — appName=${vscode.env.appName}`);
 
-  // Check for state file from worktree creation (new window post-open actions)
+  // Phase 2: Check for state file from worktree creation (runs in new window)
   checkStateFile();
 
+  // Phase 1: URI handler (runs in original window)
   context.subscriptions.push(
     vscode.window.registerUriHandler({
       async handleUri(uri: vscode.Uri) {
         log(`handleUri: ${uri.toString()}`);
-        _channel.show(true); // show the output channel, preserve focus
         try {
           await handleURI(uri);
-          log(`handleUri: completed successfully`);
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           log(`handleUri: ERROR — ${message}`);
@@ -56,18 +55,16 @@ async function checkStateFile(): Promise<void> {
     return;
   }
 
-  log(`[state] consumed state file: ${JSON.stringify(state)}`);
+  log(`[phase2] consumed state file: ${JSON.stringify(state)}`);
+  _channel.show(true); // show output channel in new window, preserve focus
 
-  if (state.focusPR) {
-    // Small delay to let the GH PR extension activate and discover the repo
-    setTimeout(async () => {
-      try {
-        await vscode.commands.executeCommand("pr:github.focus");
-        log(`[state] focused PR view`);
-      } catch (err) {
-        log(`[state] pr:github.focus failed (non-fatal): ${err}`);
-      }
-    }, 3000);
+  try {
+    await resumeWorktreeSetup(root, state);
+    log(`[phase2] completed successfully`);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log(`[phase2] ERROR — ${message}`);
+    vscode.window.showErrorMessage(`Checkout Worktree: ${message}`);
   }
 }
 

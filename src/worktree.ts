@@ -1,11 +1,22 @@
 /**
  * worktree.ts — Create or find a git worktree for a branch and open it.
  *
- * Flow:
- * 1. Fetch origin to ensure the branch ref exists locally
- * 2. Check if a worktree for this ref already exists
- * 3. If not, create one via the git API
- * 4. Open the worktree folder in VS Code
+ * Split into two phases:
+ *
+ * Phase 1 (original window — silent, no notifications):
+ *   1. Check if a worktree for this branch already exists
+ *   2. If new: create an empty worktree via `git worktree add --no-checkout --detach`
+ *   3. Ensure .gitignore entry for worktree dir
+ *   4. Write a state file with branch info into the worktree folder
+ *   5. Open the worktree folder in a new editor window
+ *
+ * Phase 2 (new window — all user-visible work happens here):
+ *   1. Read and consume the state file
+ *   2. Fetch origin
+ *   3. For new worktrees: checkout the branch (populates files)
+ *   4. For existing worktrees: hard reset to origin + clean
+ *   5. Run post-checkout hook
+ *   6. Focus PR sidebar
  */
 
 import * as vscode from "vscode";
@@ -16,24 +27,58 @@ import type { Repository } from "./git-api";
 import { resolveHome } from "./utils";
 import { log } from "./extension";
 
+// ─── State file ──────────────────────────────────────────────────────────────
+
+const STATE_FILE = ".checkout-worktree-state.json";
+
+export interface WorktreeState {
+  ref: string;
+  isNew: boolean;
+  focusPR: boolean;
+}
+
+async function writeStateFile(worktreePath: string, state: WorktreeState): Promise<void> {
+  const filePath = path.join(worktreePath, STATE_FILE);
+  try {
+    await fs.writeFile(filePath, JSON.stringify(state, null, 2), "utf-8");
+    log(`[state] wrote ${filePath}`);
+  } catch (err) {
+    log(`[state] write failed (non-fatal): ${err}`);
+  }
+}
+
 /**
- * Ensure a worktree exists for the given ref (branch name) and open it.
+ * Read and delete the state file from the workspace root.
+ * Returns null if no state file exists.
  */
-export async function checkoutWorktree(
+export async function consumeStateFile(workspaceRoot: string): Promise<WorktreeState | null> {
+  const filePath = path.join(workspaceRoot, STATE_FILE);
+  try {
+    const content = await fs.readFile(filePath, "utf-8");
+    await fs.unlink(filePath);
+    return JSON.parse(content) as WorktreeState;
+  } catch {
+    return null;
+  }
+}
+
+// ─── Phase 1: Original window (silent) ──────────────────────────────────────
+
+/**
+ * Called from the URI handler in the original window.
+ * Creates worktree folder if needed, writes state, opens new window. Silent.
+ */
+export async function prepareAndOpenWorktree(
   repo: Repository,
   ref: string
 ): Promise<void> {
-  // Fetch to make sure we have the latest refs
-  await vscode.window.withProgress(
-    { location: vscode.ProgressLocation.Notification, title: `Fetching origin…` },
-    () => repo.fetch({ remote: "origin", ref })
-  );
+  const repoRoot = repo.rootUri.fsPath;
 
   // Check for existing worktree matching this ref
-  const existingPath = findExistingWorktree(repo.rootUri.fsPath, ref);
+  const existingPath = findExistingWorktree(repoRoot, ref);
   if (existingPath) {
-    await resetWorktree(existingPath, ref);
-    await runPostCheckoutHook(existingPath);
+    log(`[phase1] existing worktree found at ${existingPath}`);
+    await writeStateFile(existingPath, { ref, isNew: false, focusPR: true });
     await openFolder(existingPath);
     return;
   }
@@ -43,55 +88,114 @@ export async function checkoutWorktree(
   const safeBranch = ref.replace(/\//g, "-");
   const worktreePath = path.join(worktreeDir, safeBranch);
 
-  // Ensure .worktrees is in .gitignore (only modifies if worktree dir is inside repo)
-  await ensureGitignored(repo.rootUri.fsPath, worktreeDir);
+  // Ensure .worktrees is in .gitignore
+  await ensureGitignored(repoRoot, worktreeDir);
 
-  // Create worktree via CLI — repo.createWorktree() isn't available in all editors (e.g. Cursor)
-  const cmd = `git worktree add -b ${ref} ${JSON.stringify(worktreePath)} origin/${ref}`;
-  log(`[create] cmd: ${cmd}`);
-  log(`[create] cwd: ${repo.rootUri.fsPath}`);
+  // Create empty worktree — no fetch needed, --detach + --no-checkout
+  // This just creates the folder + git linkage, no files populated
+  const cmd = `git worktree add --no-checkout --detach ${JSON.stringify(worktreePath)}`;
+  log(`[phase1] cmd: ${cmd}`);
+  log(`[phase1] cwd: ${repoRoot}`);
 
-  await vscode.window.withProgress(
-    { location: vscode.ProgressLocation.Notification, title: `Creating worktree for ${ref}…` },
-    () =>
-      new Promise<void>((resolve, reject) => {
-        cp.exec(cmd, { cwd: repo.rootUri.fsPath, timeout: 30000 }, (err, stdout, stderr) => {
-          log(`[create] callback fired. err=${err ? err.message : "null"}`);
-          log(`[create] stdout: ${stdout}`);
-          log(`[create] stderr: ${stderr}`);
-          if (err) {
-            reject(new Error(`git worktree add failed: ${err.message}`));
-          } else {
-            resolve();
-          }
-        });
-      })
-  );
+  await new Promise<void>((resolve, reject) => {
+    cp.exec(cmd, { cwd: repoRoot, timeout: 30000 }, (err, stdout, stderr) => {
+      log(`[phase1] stdout: ${stdout}`);
+      log(`[phase1] stderr: ${stderr}`);
+      if (err) {
+        reject(new Error(`git worktree add failed: ${err.message}`));
+      } else {
+        resolve();
+      }
+    });
+  });
 
-  // Verify the worktree directory exists before proceeding
+  // Verify the worktree directory exists
   try {
     const stat = await fs.stat(worktreePath);
-    log(`[create] worktree exists: isDir=${stat.isDirectory()}`);
-  } catch (e) {
-    log(`[create] worktree NOT FOUND at ${worktreePath}`);
+    log(`[phase1] worktree created: isDir=${stat.isDirectory()}`);
+  } catch {
     throw new Error(`Worktree directory not found after creation: ${worktreePath}`);
   }
 
-  // Write state file so the new window knows to focus the PR view
-  await writeStateFile(worktreePath, { focusPR: true });
-
-  // Run post-checkout hook if configured
-  await runPostCheckoutHook(worktreePath);
-
-  log(`[open] about to open: ${worktreePath}`);
+  await writeStateFile(worktreePath, { ref, isNew: true, focusPR: true });
   await openFolder(worktreePath);
-  log(`[open] openFolder returned`);
+  log(`[phase1] done — new window opening`);
 }
 
+// ─── Phase 2: New window (all user-visible work) ────────────────────────────
+
 /**
- * Parse `git worktree list --porcelain` to find a worktree for the given branch.
- * Returns the worktree path if found, undefined otherwise.
+ * Called from extension.activate() in the new window.
+ * Reads state file, fetches, checks out / resets, runs hook, focuses PR.
  */
+export async function resumeWorktreeSetup(
+  workspaceRoot: string,
+  state: WorktreeState
+): Promise<void> {
+  const { ref, isNew } = state;
+
+  // Fetch origin to get latest refs
+  await vscode.window.withProgress(
+    { location: vscode.ProgressLocation.Notification, title: `Fetching origin…` },
+    () =>
+      gitExec(workspaceRoot, `git fetch origin ${ref}`)
+  );
+
+  if (isNew) {
+    // New worktree: create local branch tracking origin and checkout
+    await vscode.window.withProgress(
+      { location: vscode.ProgressLocation.Notification, title: `Checking out ${ref}…` },
+      () =>
+        gitExec(workspaceRoot, `git checkout -b ${ref} origin/${ref}`)
+    );
+  } else {
+    // Existing worktree: hard reset to latest origin
+    if (!PROTECTED_BRANCHES.has(ref)) {
+      await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: `Resetting to origin/${ref}…` },
+        () =>
+          gitExec(workspaceRoot, `git reset --hard origin/${ref} && git clean -fd`)
+      );
+    }
+  }
+
+  // Run post-checkout hook
+  await runPostCheckoutHook(workspaceRoot);
+
+  // Focus PR sidebar after a delay (let GH PR extension discover the repo)
+  if (state.focusPR) {
+    setTimeout(async () => {
+      try {
+        await vscode.commands.executeCommand("pr:github.focus");
+        log(`[phase2] focused PR view`);
+      } catch (err) {
+        log(`[phase2] pr:github.focus failed (non-fatal): ${err}`);
+      }
+    }, 3000);
+  }
+
+  vscode.window.showInformationMessage(
+    `Worktree ready: ${ref}`
+  );
+}
+
+// ─── Shared helpers ──────────────────────────────────────────────────────────
+
+function gitExec(cwd: string, command: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    cp.exec(command, { cwd, timeout: 30000 }, (err, stdout, stderr) => {
+      log(`[git] ${command}`);
+      if (stdout.trim()) { log(`[git] stdout: ${stdout.trim()}`); }
+      if (stderr.trim()) { log(`[git] stderr: ${stderr.trim()}`); }
+      if (err) {
+        reject(new Error(`${command} failed: ${stderr || err.message}`));
+      } else {
+        resolve(stdout);
+      }
+    });
+  });
+}
+
 function findExistingWorktree(repoRoot: string, ref: string): string | undefined {
   try {
     const output = cp.execSync("git worktree list --porcelain", {
@@ -100,8 +204,6 @@ function findExistingWorktree(repoRoot: string, ref: string): string | undefined
       timeout: 5000,
     });
 
-    // Porcelain format: blocks separated by blank lines
-    // Each block: "worktree <path>\nHEAD <sha>\nbranch refs/heads/<name>\n"
     let currentPath: string | undefined;
     for (const line of output.split("\n")) {
       if (line.startsWith("worktree ")) {
@@ -116,7 +218,7 @@ function findExistingWorktree(repoRoot: string, ref: string): string | undefined
       }
     }
   } catch {
-    // git worktree list failed — fall through to create
+    // git worktree list failed — fall through
   }
   return undefined;
 }
@@ -127,23 +229,16 @@ function getWorktreeParentDir(repo: Repository): string {
 
   if (configured) {
     const resolved = resolveHome(configured);
-    // Resolve relative paths against the repo root
     if (!path.isAbsolute(resolved)) {
       return path.resolve(repo.rootUri.fsPath, resolved);
     }
     return resolved;
   }
 
-  // Default: <repo-root>/.worktrees/ (inside repo, gitignored)
   return path.join(repo.rootUri.fsPath, ".worktrees");
 }
 
-/**
- * Ensure the worktree directory is listed in the repo's .gitignore.
- * Only acts when the worktree dir is inside the repo root.
- */
 async function ensureGitignored(repoRoot: string, worktreeDir: string): Promise<void> {
-  // Only relevant if worktreeDir is inside the repo
   const relative = path.relative(repoRoot, worktreeDir);
   if (relative.startsWith("..") || path.isAbsolute(relative)) {
     return;
@@ -159,10 +254,8 @@ async function ensureGitignored(repoRoot: string, worktreeDir: string): Promise<
     if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
       throw err;
     }
-    // No .gitignore yet — we'll create one
   }
 
-  // Check if already ignored (exact line match)
   const lines = content.split("\n");
   const alreadyIgnored = lines.some(
     (line) => line.trim() === entry || line.trim() === relative || line.trim() === `${relative}/`
@@ -172,15 +265,10 @@ async function ensureGitignored(repoRoot: string, worktreeDir: string): Promise<
     return;
   }
 
-  // Append the entry
   const separator = content.length > 0 && !content.endsWith("\n") ? "\n" : "";
   await fs.writeFile(gitignorePath, `${content}${separator}${entry}\n`, "utf-8");
 }
 
-/**
- * Run the configured post-checkout command in the worktree directory.
- * Skips silently if no command is configured.
- */
 async function runPostCheckoutHook(worktreePath: string): Promise<void> {
   const config = vscode.workspace.getConfiguration("checkout-worktree");
   const command = config.get<string>("postCheckoutCommand", "");
@@ -214,72 +302,7 @@ async function runPostCheckoutHook(worktreePath: string): Promise<void> {
   );
 }
 
-const STATE_FILE = ".checkout-worktree-state.json";
-
-export interface WorktreeState {
-  focusPR?: boolean;
-}
-
-/**
- * Write a state file into the worktree directory.
- * The new window reads this on activation to perform post-open actions.
- */
-async function writeStateFile(worktreePath: string, state: WorktreeState): Promise<void> {
-  const filePath = path.join(worktreePath, STATE_FILE);
-  try {
-    await fs.writeFile(filePath, JSON.stringify(state, null, 2), "utf-8");
-    log(`[state] wrote ${filePath}`);
-  } catch (err) {
-    log(`[state] write failed (non-fatal): ${err}`);
-  }
-}
-
-/**
- * Read and delete the state file from the workspace root.
- * Returns null if no state file exists.
- */
-export async function consumeStateFile(workspaceRoot: string): Promise<WorktreeState | null> {
-  const filePath = path.join(workspaceRoot, STATE_FILE);
-  try {
-    const content = await fs.readFile(filePath, "utf-8");
-    await fs.unlink(filePath);
-    return JSON.parse(content) as WorktreeState;
-  } catch {
-    return null;
-  }
-}
-
 const PROTECTED_BRANCHES = new Set(["main", "master"]);
-
-/**
- * Reset an existing worktree to match origin — hard reset + clean.
- * Skips protected branches (main, master) to avoid data loss.
- */
-async function resetWorktree(worktreePath: string, ref: string): Promise<void> {
-  if (PROTECTED_BRANCHES.has(ref)) {
-    return;
-  }
-
-  await vscode.window.withProgress(
-    { location: vscode.ProgressLocation.Notification, title: `Resetting worktree to origin/${ref}…` },
-    () =>
-      new Promise<void>((resolve, reject) => {
-        const commands = [
-          `git fetch origin ${ref}`,
-          `git reset --hard origin/${ref}`,
-          `git clean -fd`,
-        ].join(" && ");
-
-        cp.exec(commands, { cwd: worktreePath, timeout: 30000 }, (err) => {
-          if (err) {
-            reject(new Error(`Failed to reset worktree: ${err.message}`));
-          } else {
-            resolve();
-          }
-        });
-      })
-  );
-}
 
 async function openFolder(folderPath: string): Promise<void> {
   const appName = vscode.env.appName.toLowerCase();
@@ -294,8 +317,6 @@ async function openFolder(folderPath: string): Promise<void> {
     cli = "code";
   }
 
-  log(`[open] path=${folderPath}`);
-  log(`[open] appName=${vscode.env.appName}, cli=${cli}`);
   log(`[open] spawning: ${cli} --new-window ${folderPath}`);
 
   const child = cp.spawn(cli, ["--new-window", folderPath], {

@@ -12,7 +12,7 @@
 
 import * as vscode from "vscode";
 import { findRepository } from "./find-repo";
-import { checkoutWorktree } from "./worktree";
+import { prepareAndOpenWorktree } from "./worktree";
 
 export interface ParsedURI {
   repo: string;
@@ -44,9 +44,5 @@ export async function handleURI(uri: vscode.Uri): Promise<void> {
   const parsed = parseURI(uri);
 
   const repo = await findRepository(parsed.repo, parsed.uri);
-  await checkoutWorktree(repo, parsed.ref);
-
-  vscode.window.showInformationMessage(
-    `Opened worktree for ${parsed.ref} in ${parsed.repo}`
-  );
+  await prepareAndOpenWorktree(repo, parsed.ref);
 }
