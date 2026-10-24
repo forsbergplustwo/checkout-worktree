@@ -25,6 +25,7 @@
     "url": "https://github.com/forsbergplustwo/checkout-worktree.git"
   },
   "license": "MIT",
+  "packageManager": "pnpm@12.15.0",
   "engines": {
     "vscode": "^1.85.0"
   },

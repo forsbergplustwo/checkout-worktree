@@ -1,0 +1,16 @@
+# Fail the install if any dependency tries to run a build script
+# that hasn't been explicitly allowed below
+strictDepBuilds: true
+
+# Fail if a package's trust level drops compared with earlier releases
+trustPolicy: no-downgrade
+
+# Only direct dependencies may come from git repos or tarball URLs
+blockExoticSubdeps: true
+
+# Don't install any version published less than 2 weeks ago
+minimumReleaseAge: 20160   # 14 days, minutes
+
+# Reviewed install-script allowlist. This tree is TypeScript + type
+# packages only; none ship install/build scripts.
+allowBuilds: {}
